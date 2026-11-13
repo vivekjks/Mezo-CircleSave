@@ -141,9 +141,10 @@ contract AuditFixesTest is BaseTest {
         vm.prank(bob);
         vm.expectRevert(SavingsCircle.AlreadyMatured.selector);
         c.topUp(1_000 * UNIT);
+        uint256 daveBefore = musd.balanceOf(dave);
         c.finalize(); // goal missed → fee-free refund, not a release to dave
         assertTrue(c.refundMode());
-        assertEq(musd.balanceOf(dave), 0);
+        assertEq(musd.balanceOf(dave), daveBefore);
     }
 
     // ─────────────────────────────────────────── M-4 public rotating deposits
