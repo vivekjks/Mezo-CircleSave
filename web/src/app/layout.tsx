@@ -5,6 +5,7 @@ import { Providers } from "@/components/providers";
 import { ConnectProvider } from "@/components/wallet";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
+import { Analytics } from "@vercel/analytics/next";
 
 const sans = Hanken_Grotesk({ variable: "--font-hanken", subsets: ["latin"], display: "swap" });
 
@@ -53,6 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <SiteFooter />
           </ConnectProvider>
         </Providers>
+        <Analytics />
       </body>
     </html>
   );

@@ -5,6 +5,7 @@ import { ModelIcon } from "@/components/model-art";
 import { ADDR } from "@/lib/contracts";
 import { deployment } from "@/lib/contracts/deployment";
 import { explorerAddress } from "@/lib/wagmi";
+import { DEX } from "@/lib/mezo-dex";
 
 const MODELS = [
   { name: "Rotating", who: "One member per round, until everyone has had the pot once", when: "Every round", miss: "Their deposit covers the round", leave: "Before the circle starts", good: "Friends, family, community groups" },
@@ -32,7 +33,11 @@ const WHAT_IF = [
   },
   {
     q: "Someone pays late",
-    a: "A late payment still counts while the round is open. It's marked late on the ledger for everyone to see.",
+    a: "A late payment still counts while the round is open. It's marked late on the ledger, and members who are behind lose their vote until they catch up.",
+  },
+  {
+    q: "Strangers join an emergency pool to vote money out",
+    a: "They can't: emergency pools are invite only, only members who are up to date on their rounds can vote, and one request can take at most half the pool.",
   },
   {
     q: "The group wants to stop",
@@ -53,7 +58,8 @@ const CONTRACTS = [
   { name: "Savings circle", role: "The rules every circle runs on", address: deployment.implementation },
   { name: "Group voting", role: "Withdrawal requests and votes to close early", address: ADDR.governor },
   { name: "Read helper", role: "Read-only views used by this app", address: ADDR.lens },
-  { name: "MUSD", role: "Mezo's Bitcoin-backed dollar, used for every payment", address: ADDR.musd },
+  { name: "MUSD", role: "Mezo's Bitcoin-backed dollar, used for every payment (EIP-2612 permits supported)", address: ADDR.musd },
+  { name: "Mezo Pools router", role: "Mezo's own exchange: CircleSave swaps BTC and MEZO into MUSD through it", address: DEX.router },
 ];
 
 export default function Home() {
@@ -84,9 +90,9 @@ export default function Home() {
           <p className="mt-6 text-sm text-ink-soft">
             New to Mezo?{" "}
             <Link href="/get-musd" className="link-quiet font-semibold text-ink">
-              Get test MUSD
+              Swap test BTC for MUSD
             </Link>{" "}
-            in a minute.
+            on Mezo Pools in a minute.
           </p>
         </div>
         <LiveCirclePreview />
