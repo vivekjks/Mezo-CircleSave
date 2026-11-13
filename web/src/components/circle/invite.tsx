@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import type { Address, Hex } from "viem";
 import { useSignMessage } from "wagmi";
 import { QRCodeSVG } from "qrcode.react";
 import { Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { ZERO, type Summary } from "@/lib/contracts";
-import { useCreatedBy } from "@/lib/hooks";
+import { useCreatedBy, useOrigin } from "@/lib/hooks";
 import { inviteKeyFromSignature, inviteKeyMessage, inviteSignerOf, inviteUrl, rememberInviteKey } from "@/lib/invite";
 import { periodLabel, toMusd } from "@/lib/format";
 import { humanizeError } from "@/lib/errors";
@@ -33,8 +32,7 @@ export function InviteDialog({
   const isCreator = !!user && user.toLowerCase() === s.creator.toLowerCase();
   const created = useCreatedBy(isCreator ? user : undefined);
   const { signMessageAsync, isPending } = useSignMessage();
-  const [origin, setOrigin] = useState("");
-  useEffect(() => setOrigin(window.location.origin), []);
+  const origin = useOrigin();
 
   const validKey = inviteKey && inviteSignerOf(inviteKey).toLowerCase() === s.params.inviteSigner.toLowerCase() ? inviteKey : null;
   const url = !isPrivate ? inviteUrl(origin, s.circle) : validKey ? inviteUrl(origin, s.circle, validKey) : null;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { isAddress, parseEventLogs, type Address, type Hex } from "viem";
 import { useAccount, usePublicClient, useReadContract, useSignMessage } from "wagmi";
@@ -113,9 +113,10 @@ export function CreateWizard() {
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((p) => ({ ...p, [k]: v }));
 
   // "Start the next round" copies the previous circle's settings.
-  useEffect(() => {
-    const s = parentCircle.data;
-    if (!s) return;
+  const [copiedFrom, setCopiedFrom] = useState<string | null>(null);
+  const s = parentCircle.data;
+  if (s && copiedFrom !== s.circle) {
+    setCopiedFrom(s.circle);
     const contribution = toMusd(s.params.contributionAmount, 6).replace(/,/g, "");
     setF((p) => ({
       ...p,
@@ -134,7 +135,7 @@ export function CreateWizard() {
       votingPeriod: s.params.votingPeriod || p.votingPeriod,
       isPrivate: s.params.inviteSigner !== ZERO,
     }));
-  }, [parentCircle.data]);
+  }
 
   const rotating = f.model === Model.Rotating;
   const contribution = parseMusd(f.contribution);

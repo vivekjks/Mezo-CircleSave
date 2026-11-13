@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { Address, Hex } from "viem";
 import { useAccount } from "wagmi";
 import { ExternalLink, Lock, PartyPopper, Share2 } from "lucide-react";
@@ -9,11 +9,10 @@ import { ExternalLink, Lock, PartyPopper, Share2 } from "lucide-react";
 import { Model, ProposalKind, ProposalState, Status, ZERO, type Summary } from "@/lib/contracts";
 import { elapsedRounds, hasBit, maturity, MODEL_INFO, plannedRounds, roundDeadline, statusInfo, targetAmount } from "@/lib/circle-logic";
 import { bpsToPercent, durationLabel, formatDate, pct, periodLabel, relativeTime, toMusd } from "@/lib/format";
-import { useCircle, useMembers, useNow, usePosition, useProposals } from "@/lib/hooks";
-import { readKeyFromHash, recallInviteKey } from "@/lib/invite";
+import { useCircle, useInviteKey, useMembers, useNow, usePosition, useProposals, useSearchFlag } from "@/lib/hooks";
 import { CircleRing, type RingNode } from "@/components/ring";
 import { Ledger } from "@/components/ledger";
-import { markColor, AddressLink, MemberMark } from "@/components/identity";
+import { AddressLink, MemberMark } from "@/components/identity";
 import { ModelIcon } from "@/components/model-art";
 import { explorerAddress } from "@/lib/wagmi";
 import { Button, Chip, Empty, Panel, Progress, Skeleton, cx } from "@/components/ui";
@@ -34,17 +33,11 @@ export function CircleView({ address }: { address: Address }) {
 
   const [tab, setTab] = useState<Tab>("ledger");
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [inviteKey, setInviteKey] = useState<Hex | null>(null);
-  const [justCreated, setJustCreated] = useState(false);
-
-  useEffect(() => {
-    const k = readKeyFromHash(window.location.hash) ?? recallInviteKey(address);
-    if (k) setInviteKey(k);
-    if (new URLSearchParams(window.location.search).get("created")) {
-      setJustCreated(true);
-      window.history.replaceState(null, "", `/circle/${address}`);
-    }
-  }, [address]);
+  const urlKey = useInviteKey(address);
+  const [manualKey, setInviteKey] = useState<Hex | null>(null);
+  const inviteKey = manualKey ?? urlKey;
+  const createdFlag = useSearchFlag("created");
+  const [bannerClosed, setBannerClosed] = useState(false);
 
   const s = summary.data;
   const { join, joining } = useJoin(s, inviteKey);
@@ -71,6 +64,7 @@ export function CircleView({ address }: { address: Address }) {
       </div>
     );
 
+  const isMemberView = (a: string) => !!user && a.toLowerCase() === user.toLowerCase();
   const rotating = s.params.model === Model.Rotating;
   const status = statusInfo(s);
   const isPrivate = s.params.inviteSigner !== ZERO;
@@ -87,7 +81,6 @@ export function CircleView({ address }: { address: Address }) {
     return {
       id: m.account,
       label: m.account.slice(2, 4).toUpperCase(),
-      color: markColor(m.account),
       state:
         s.status !== Status.Active || m.data.exited || ringRound >= s.totalRounds || !roundOpen
           ? "idle"
@@ -129,7 +122,6 @@ export function CircleView({ address }: { address: Address }) {
     { id: "rules", label: "Rules" },
   ];
 
-  const isMemberView = (a: string) => !!user && a.toLowerCase() === user.toLowerCase();
   const rounds = started ? s.totalRounds : plannedRounds(s);
   const duration = rounds * s.params.periodDuration;
 
@@ -187,15 +179,20 @@ export function CircleView({ address }: { address: Address }) {
         / <span className="text-ink">{s.meta.name}</span>
       </nav>
 
-      {justCreated && (
+      {createdFlag && !bannerClosed && isMemberView(s.creator) && (
         <div className="mt-5 flex flex-wrap items-center justify-between gap-4 rounded-[14px] border border-blue px-5 py-4">
           <div className="flex items-center gap-3">
             <PartyPopper className="size-5 text-blue" />
             <span className="font-semibold text-ink">Your circle is live on Mezo. Send the invite link to your group.</span>
           </div>
-          <Button size="sm" variant="ink" onClick={() => setInviteOpen(true)}>
-            Get invite link
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="ink" onClick={() => setInviteOpen(true)}>
+              Get invite link
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setBannerClosed(true)}>
+              Dismiss
+            </Button>
+          </div>
         </div>
       )}
       {s.paused && (

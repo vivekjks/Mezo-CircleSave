@@ -21,8 +21,9 @@ const NAV = [
 
 export function SiteHeader() {
   const path = usePathname();
-  const [open, setOpen] = useState(false);
-  useEffect(() => setOpen(false), [path]);
+  // the menu belongs to the page it was opened on, so navigating closes it
+  const [openOn, setOpenOn] = useState<string | null>(null);
+  const open = openOn === path;
 
   return (
     <header className="sticky top-0 z-30 border-b border-rule bg-white">
@@ -54,7 +55,7 @@ export function SiteHeader() {
           <WalletButton />
           <button
             className="rounded-lg p-2 text-ink md:hidden"
-            onClick={() => setOpen((o) => !o)}
+            onClick={() => setOpenOn(open ? null : path)}
             aria-label={open ? "Close menu" : "Open menu"}
             aria-expanded={open}
           >
@@ -167,10 +168,10 @@ const REMIND_KEY = "circlesave:reminders";
 const SEEN_KEY = "circlesave:reminded";
 
 function ReminderToggle() {
-  const [on, setOn] = useState(false);
-  useEffect(() => {
-    setOn(typeof Notification !== "undefined" && Notification.permission === "granted" && localStorage.getItem(REMIND_KEY) === "1");
-  }, []);
+  // only rendered on the client, inside the open reminders panel
+  const [on, setOn] = useState(
+    () => typeof Notification !== "undefined" && Notification.permission === "granted" && localStorage.getItem(REMIND_KEY) === "1",
+  );
   if (typeof Notification === "undefined") return null;
   return (
     <button

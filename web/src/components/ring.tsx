@@ -7,7 +7,6 @@ import { IdenticonShapes } from "./identicon";
 export type RingNode = {
   id: string;
   label: string;
-  color: string;
   state: "paid" | "due" | "missed" | "idle";
   recipient?: boolean;
   received?: boolean;

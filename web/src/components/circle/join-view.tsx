@@ -2,17 +2,17 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import type { Address, Hex } from "viem";
+import { useState } from "react";
+import type { Address } from "viem";
 import { useAccount } from "wagmi";
 import { Lock } from "lucide-react";
 import { Model, Status, ZERO } from "@/lib/contracts";
 import { MODEL_INFO, plannedRounds, targetAmount } from "@/lib/circle-logic";
 import { bpsToPercent, durationLabel, periodLabel, relativeTime, toMusd } from "@/lib/format";
-import { useCircle, useMembers, useMounted, useMusdBalance, useNow, usePosition } from "@/lib/hooks";
-import { inviteSignerOf, readKeyFromHash, recallInviteKey } from "@/lib/invite";
+import { useCircle, useInviteKey, useMembers, useMounted, useMusdBalance, useNow, usePosition } from "@/lib/hooks";
+import { inviteSignerOf } from "@/lib/invite";
 import { CircleRing } from "@/components/ring";
-import { AddressLink, markColor } from "@/components/identity";
+import { AddressLink } from "@/components/identity";
 import { ConnectButton } from "@/components/wallet";
 import { Button, Empty, Panel, Skeleton } from "@/components/ui";
 import { useJoin } from "./use-join";
@@ -26,14 +26,10 @@ export function JoinView({ address }: { address: Address }) {
   const members = useMembers(address);
   const position = usePosition(address, user);
   const balance = useMusdBalance(user);
-  const [key, setKey] = useState<Hex | null>(null);
+  const key = useInviteKey(address);
   const [agreed, setAgreed] = useState(false);
   const s = summary.data;
   const { join, joining } = useJoin(s, key);
-
-  useEffect(() => {
-    setKey(readKeyFromHash(window.location.hash) ?? recallInviteKey(address));
-  }, [address]);
 
   if (summary.isLoading)
     return (
@@ -132,7 +128,7 @@ export function JoinView({ address }: { address: Address }) {
 
           <div>
             <CircleRing
-              nodes={views.map((m) => ({ id: m.account, label: m.account.slice(2, 4).toUpperCase(), color: markColor(m.account), state: "idle" as const }))}
+              nodes={views.map((m) => ({ id: m.account, label: m.account.slice(2, 4).toUpperCase(), state: "idle" as const }))}
               potLabel="Members joined"
               potValue={`${s.memberCount} of ${s.params.maxMembers}`}
               potUnit="seats filled"

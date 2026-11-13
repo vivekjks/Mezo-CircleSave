@@ -23,7 +23,7 @@ export function useTasks(user?: Address) {
     query: { enabled: !!user && list.length > 0, refetchInterval: 20_000 },
   });
 
-  const pooled = list.filter((s) => s.params.model !== Model.Rotating && s.status === Status.Active);
+  const pooled = useMemo(() => list.filter((s) => s.params.model !== Model.Rotating && s.status === Status.Active), [list]);
   const proposals = useReadContracts({
     contracts: pooled.map((s) => ({
       address: ADDR.governor,
@@ -34,7 +34,10 @@ export function useTasks(user?: Address) {
     query: { enabled: !!user && pooled.length > 0, refetchInterval: 20_000 },
   });
 
+  // recompute reminders every 30 seconds, not every tick
+  const tick = Math.floor(t / 30);
   const tasks: Task[] = useMemo(() => {
+    const t = tick * 30;
     if (!user || !t) return [];
     const propMap = new Map<string, readonly ProposalView[]>();
     pooled.forEach((s, i) => {
@@ -48,8 +51,7 @@ export function useTasks(user?: Address) {
       all.push(...deriveTasks(s, pos, propMap.get(s.circle), user, t));
     });
     return sortTasks(all);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [list, positions.data, proposals.data, user, Math.floor(t / 30)]);
+  }, [list, positions.data, proposals.data, user, tick, pooled]);
 
   const positionMap = useMemo(() => {
     const m = new Map<string, Position>();

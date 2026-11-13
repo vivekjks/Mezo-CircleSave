@@ -9,11 +9,6 @@ import { Identicon } from "./identicon";
 import { explorerAddress } from "@/lib/wagmi";
 
 
-/** Every member mark is solid black; the viewer's own mark is drawn in blue where it matters. */
-export function markColor(_seed?: string) {
-  return "#000000";
-}
-
 export function markInitials(seed: string, label?: string) {
   if (label) return label.slice(0, 2).toUpperCase();
   return seed.slice(2, 4).toUpperCase();

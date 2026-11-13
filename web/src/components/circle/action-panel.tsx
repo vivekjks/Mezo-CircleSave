@@ -27,7 +27,7 @@ type Props = {
 };
 
 export function ActionPanel(props: Props) {
-  const { s, pos, user, t, onInvite } = props;
+  const { s, pos, user, onInvite } = props;
   const isMember = !!pos?.isMember;
   const isCreator = !!user && s.creator.toLowerCase() === user.toLowerCase();
 
@@ -450,7 +450,7 @@ function TopUpDialog({ s, onClose }: { s: Summary; onClose: () => void }) {
       >
         Add {amount ? toMusd(amount) : ""} MUSD
       </Button>
-      {amount && !spend.hasBalance(amount) ? <p className="mt-2 text-sm text-ink">That's more than your wallet holds.</p> : null}
+      {amount && !spend.hasBalance(amount) ? <p className="mt-2 text-sm text-ink">That&apos;s more than your wallet holds.</p> : null}
     </Dialog>
   );
 }

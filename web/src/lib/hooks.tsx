@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getAbiItem, type Abi, type Address, type TransactionReceipt } from "viem";
+import { getAbiItem, type Abi, type Address, type Hex, type TransactionReceipt } from "viem";
 import { useAccount, usePublicClient, useReadContract, useSwitchChain, useWriteContract } from "wagmi";
 import { toast } from "sonner";
 
@@ -17,6 +17,7 @@ import {
 } from "./contracts";
 import { chain, explorerTx } from "./wagmi";
 import { humanizeError } from "./errors";
+import { readKeyFromHash, recallInviteKey } from "./invite";
 
 const LIVE = { refetchInterval: 15_000 } as const;
 
@@ -75,10 +76,35 @@ export function useNow() {
   );
 }
 
+const noopSubscribe = () => () => {};
+
+/** True once rendering on the client (false during SSR and hydration). */
 export function useMounted() {
-  const [m, setM] = useState(false);
-  useEffect(() => setM(true), []);
-  return m;
+  return useSyncExternalStore(noopSubscribe, () => true, () => false);
+}
+
+/** window.location.origin on the client, "" on the server. */
+export function useOrigin() {
+  return useSyncExternalStore(noopSubscribe, () => window.location.origin, () => "");
+}
+
+/** Whether the current URL has `?name` in its query string. */
+export function useSearchFlag(name: string) {
+  return useSyncExternalStore(noopSubscribe, () => new URLSearchParams(window.location.search).has(name), () => false);
+}
+
+function subscribeHash(cb: () => void) {
+  window.addEventListener("hashchange", cb);
+  return () => window.removeEventListener("hashchange", cb);
+}
+
+/** Private invite key from the link fragment (#k=…), or the copy saved in this browser. */
+export function useInviteKey(circle: Address): Hex | null {
+  return useSyncExternalStore(
+    subscribeHash,
+    () => readKeyFromHash(window.location.hash) ?? recallInviteKey(circle),
+    () => null,
+  );
 }
 
 // ───────────────────────────────────────────── reads
