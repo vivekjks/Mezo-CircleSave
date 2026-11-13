@@ -2,8 +2,8 @@
 
 import { useCallback, useState, useSyncExternalStore } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getAbiItem, type Abi, type Address, type Hex, type TransactionReceipt } from "viem";
-import { useAccount, usePublicClient, useReadContract, useSwitchChain, useWriteContract } from "wagmi";
+import { getAbiItem, parseSignature, UserRejectedRequestError, BaseError, type Abi, type Address, type Hex, type TransactionReceipt } from "viem";
+import { useAccount, usePublicClient, useReadContract, useSignTypedData, useSwitchChain, useWriteContract } from "wagmi";
 import { toast } from "sonner";
 
 import {
@@ -38,6 +38,9 @@ const GAS_FLOOR: Record<string, bigint> = {
   removeMember: 900_000n,
   leave: 900_000n,
   join: 600_000n,
+  joinWithPermit: 700_000n,
+  contributeWithPermit: 600_000n,
+  swapExactTokensForTokens: 600_000n,
 };
 
 export function withHeadroom(estimate: bigint, functionName = ""): bigint {
@@ -357,4 +360,74 @@ export function useMusdSpend() {
   };
 
   return { needsApproval, hasBalance, approve, approving: busy === "approve", balance: balance.data, allowance: allowance.data };
+}
+
+// ───────────────────────────────────────────── MUSD permit (EIP-2612)
+
+const permitAbi = [
+  {
+    type: "function",
+    name: "eip712Domain",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [
+      { name: "fields", type: "bytes1" },
+      { name: "name", type: "string" },
+      { name: "version", type: "string" },
+      { name: "chainId", type: "uint256" },
+      { name: "verifyingContract", type: "address" },
+      { name: "salt", type: "bytes32" },
+      { name: "extensions", type: "uint256[]" },
+    ],
+  },
+  { type: "function", name: "nonces", stateMutability: "view", inputs: [{ name: "owner", type: "address" }], outputs: [{ type: "uint256" }] },
+] as const;
+
+const permitTypes = {
+  Permit: [
+    { name: "owner", type: "address" },
+    { name: "spender", type: "address" },
+    { name: "value", type: "uint256" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
+} as const;
+
+export type PermitSig = { value: bigint; deadline: bigint; v: number; r: Hex; s: Hex };
+
+/**
+ * Signs an EIP-2612 permit letting the CircleSave factory pull `value` MUSD, so joining or
+ * paying takes one transaction instead of approve + action. Returns null when the wallet
+ * can't sign typed data (callers fall back to approve); rethrows if the user declines.
+ */
+export function useMusdPermit() {
+  const { address } = useAccount();
+  const client = usePublicClient({ chainId: chain.id });
+  const { signTypedDataAsync } = useSignTypedData();
+
+  return useCallback(
+    async (value: bigint): Promise<PermitSig | null> => {
+      if (!address || !client) return null;
+      try {
+        const [domain, nonce] = await Promise.all([
+          client.readContract({ address: ADDR.musd, abi: permitAbi, functionName: "eip712Domain" }),
+          client.readContract({ address: ADDR.musd, abi: permitAbi, functionName: "nonces", args: [address] }),
+        ]);
+        const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
+        const signature = await signTypedDataAsync({
+          domain: { name: domain[1], version: domain[2], chainId: Number(domain[3]), verifyingContract: domain[4] },
+          types: permitTypes,
+          primaryType: "Permit",
+          message: { owner: address, spender: ADDR.factory, value, nonce, deadline },
+        });
+        const { r, s, v, yParity } = parseSignature(signature);
+        return { value, deadline, v: Number(v ?? BigInt(yParity === 1 ? 28 : 27)), r, s };
+      } catch (e) {
+        if (e instanceof BaseError && e.walk((x) => x instanceof UserRejectedRequestError)) throw e;
+        if (e instanceof Error && /user rejected|denied/i.test(e.message)) throw e;
+        return null;
+      }
+    },
+    [address, client, signTypedDataAsync],
+  );
 }
