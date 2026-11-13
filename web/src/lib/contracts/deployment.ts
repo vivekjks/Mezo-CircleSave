@@ -13,9 +13,9 @@ export const deployment = {
 
 /** Circles from the live end-to-end run, shown on the landing page and in the README. */
 export const demoCircles: Record<"rotating" | "emergency" | "goal" | "openRotating" | "openFixed", `0x${string}` | null> = {
-  rotating: null,
-  emergency: null,
-  goal: null,
-  openRotating: null,
-  openFixed: null,
+  rotating: "0x5CC5f4c7F572162f81e92E286f84dD1d2B1683a6",
+  emergency: "0x846F7750c083068c754DEbd85c0014f5E0f2667A",
+  goal: "0xF2Fcda4A95a5cac0F42b152fFb7D91dF6b1b445d",
+  openRotating: "0x17dbcA35B2695Ea26143a0f146fa12E3b38Aa01d",
+  openFixed: "0x5a32a6bDC0e549750C9ba16761D30329aEdD7B89",
 };

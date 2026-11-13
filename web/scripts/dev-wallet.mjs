@@ -67,6 +67,8 @@ http
   .createServer(async (req, res) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Headers", "content-type");
+    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Private-Network", "true"); // https site → localhost (Chrome PNA)
     if (req.method === "OPTIONS") return res.writeHead(204).end();
     let body = "";
     for await (const chunk of req) body += chunk;
