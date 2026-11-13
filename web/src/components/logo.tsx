@@ -25,8 +25,7 @@ export function Logo() {
   return (
     <Link href="/" className="inline-flex items-center gap-2.5 rounded-md text-ink" aria-label="CircleSave home">
       <LogoMark />
-      {/* the smallest phones show the mark alone so a connected wallet still fits the header row */}
-      <span className="font-display text-[21px] leading-none max-[369px]:sr-only">CircleSave</span>
+      <span className="font-display text-[21px] leading-none whitespace-nowrap">CircleSave</span>
     </Link>
   );
 }

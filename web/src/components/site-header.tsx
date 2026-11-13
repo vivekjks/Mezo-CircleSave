@@ -28,9 +28,9 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-30 border-b border-rule bg-white">
       <NetworkBanner />
-      <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-5 md:gap-6">
+      <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-5 lg:gap-6">
         <Logo />
-        <nav className="hidden items-center gap-1 md:flex" aria-label="Main">
+        <nav className="hidden items-center gap-1 lg:flex" aria-label="Main">
           {NAV.map((n) => {
             const active = path === n.href || (n.href !== "/" && path.startsWith(n.href));
             return (
@@ -39,7 +39,7 @@ export function SiteHeader() {
                 href={n.href}
                 aria-current={active ? "page" : undefined}
                 className={clsx(
-                  "rounded-lg px-3 py-2 text-[14px] font-semibold transition-colors",
+                  "rounded-lg px-3 py-2 text-[14px] font-semibold whitespace-nowrap transition-colors",
                   active ? "text-ink" : "text-ink-soft hover:text-ink",
                 )}
               >
@@ -54,7 +54,7 @@ export function SiteHeader() {
           <NotificationBell />
           <WalletButton />
           <button
-            className="-mr-1.5 rounded-lg p-2 text-ink md:hidden"
+            className="-mr-1.5 rounded-lg p-2 text-ink lg:hidden"
             onClick={() => setOpenOn(open ? null : path)}
             aria-label={open ? "Close menu" : "Open menu"}
             aria-expanded={open}
@@ -64,7 +64,7 @@ export function SiteHeader() {
         </div>
       </div>
       {open && (
-        <nav className="border-t border-rule bg-white px-5 pt-2 pb-4 md:hidden" aria-label="Mobile">
+        <nav className="border-t border-rule bg-white px-5 pt-2 pb-4 lg:hidden" aria-label="Mobile">
           {NAV.map((n) => (
             <Link key={n.href} href={n.href} className="block rounded-lg px-2 py-3 text-base font-semibold text-ink hover:bg-ink/5">
               {n.label}

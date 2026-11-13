@@ -141,12 +141,13 @@ export function WalletButton() {
         onClick={() => setMenu((m) => !m)}
         aria-expanded={menu}
         aria-haspopup="menu"
-        className="flex h-10 items-center gap-2 rounded-[var(--radius-control)] border border-ink/20 bg-surface pr-2.5 pl-1.5 text-sm font-semibold text-ink transition-colors hover:border-ink/50 sm:gap-2.5"
+        className="flex h-10 items-center gap-2 rounded-[var(--radius-control)] border border-ink/20 bg-surface pr-2.5 pl-1.5 text-sm font-semibold text-ink transition-colors hover:border-ink/50 max-[399px]:pr-1.5 sm:gap-2.5"
       >
         <MemberMark address={address} size={26} />
-        <span className="tabular hidden sm:inline">{toMusd(balance.data)} MUSD</span>
+        <span className="tabular hidden whitespace-nowrap sm:inline">{toMusd(balance.data)} MUSD</span>
         <span className="hidden h-4 w-px bg-rule-strong sm:inline-block" aria-hidden />
-        <span className="tabular font-medium text-ink-soft">{shortAddress(address, 3)}</span>
+        {/* phones show the avatar alone; the full address is in the menu */}
+        <span className="tabular font-medium whitespace-nowrap text-ink-soft max-[399px]:sr-only">{shortAddress(address, 3)}</span>
         <ChevronDown className="hidden size-4 text-ink-soft sm:block" />
       </button>
       {menu && (
