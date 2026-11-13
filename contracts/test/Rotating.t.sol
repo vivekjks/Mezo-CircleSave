@@ -182,25 +182,26 @@ contract RotatingTest is BaseTest {
         assertEq(c.getMember(bob).payoutRound, 3);
     }
 
-    function test_randomOrder_isPermutation() public {
+    function test_randomOrder_isRejected_noRandomnessOnMezo() public {
         CircleTypes.CircleParams memory p = _baseParams(CircleTypes.Model.Rotating);
         p.payoutOrder = CircleTypes.PayoutOrder.Random;
-        SavingsCircle c = _create(alice, p);
+        vm.prank(alice);
+        vm.expectRevert(SavingsCircle.InvalidParams.selector);
+        factory.createCircle(p, _meta("x"));
+    }
+
+    function test_fullCircle_anyMemberCanStart() public {
+        SavingsCircle c = _create(alice, _baseParams(CircleTypes.Model.Rotating));
         _join(c, bob);
         _join(c, carol);
         _join(c, dave);
-        _join(c, erin); // full → any member may start
+        vm.prank(erin);
+        vm.expectRevert(SavingsCircle.NotMember.selector);
+        c.leave();
+        _join(c, erin);
         vm.prank(erin);
         c.start();
-        address[] memory order = c.getPayoutOrder();
-        assertEq(order.length, 5);
-        uint256 seen;
-        for (uint256 i; i < 5; ++i) {
-            uint16 pr = c.getMember(order[i]).payoutRound;
-            assertEq(pr, i + 1);
-            seen |= 1 << pr;
-        }
-        assertEq(seen, 0x3e);
+        assertEq(c.getPayoutOrder()[4], erin);
     }
 
     function test_privateCircle_requiresInviteSignature() public {

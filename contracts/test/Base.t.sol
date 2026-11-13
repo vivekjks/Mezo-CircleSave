@@ -30,8 +30,13 @@ abstract contract BaseTest is Test {
     address internal dave = makeAddr("dave");
     address internal erin = makeAddr("erin");
 
+    // test circles are invite-only by default; helpers sign invites with this key
+    address internal inviteSigner;
+    uint256 internal inviteKey;
+
     function setUp() public virtual {
         vm.warp(1_750_000_000);
+        (inviteSigner, inviteKey) = makeAddrAndKey("circle-invite");
         musd = new MockMUSD();
         SavingsCircle impl = new SavingsCircle();
         factory = new CircleFactory(IERC20(address(musd)), address(impl), owner, treasury, FEE_BPS);
@@ -62,6 +67,7 @@ abstract contract BaseTest is Test {
         p.totalRounds = model == CircleTypes.Model.Rotating ? 0 : 4;
         p.approvalBps = 6_000;
         p.joinDeadline = uint64(block.timestamp + 3 days);
+        p.inviteSigner = inviteSigner;
         p.creatorJoins = true;
     }
 
@@ -71,8 +77,9 @@ abstract contract BaseTest is Test {
     }
 
     function _join(SavingsCircle c, address who) internal {
+        bytes memory sig = c.params().inviteSigner == address(0) ? bytes("") : _inviteSig(c, inviteKey, who);
         vm.prank(who);
-        c.join("");
+        c.join(sig);
     }
 
     function _pay(SavingsCircle c, address who, uint16 round) internal {

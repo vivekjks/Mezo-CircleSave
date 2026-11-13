@@ -167,7 +167,7 @@ contract PooledTest is BaseTest {
 
         // second request is voted down
         vm.prank(carol);
-        uint256 id2 = governor.propose(c, CircleTypes.ProposalKind.Withdrawal, 100 * UNIT, "Car repair");
+        uint256 id2 = governor.propose(c, CircleTypes.ProposalKind.Withdrawal, 50 * UNIT, "Car repair");
         vm.prank(alice);
         governor.vote(c, id2, false);
         assertEq(uint8(governor.proposalState(c, id2)), uint8(CircleTypes.ProposalState.Rejected));
@@ -237,6 +237,7 @@ contract PooledTest is BaseTest {
 
     function test_cancelProposal() public {
         SavingsCircle c = _pooled(_baseParams(CircleTypes.Model.Goal));
+        _pay(c, alice, 0);
         vm.prank(alice);
         uint256 id = governor.propose(c, CircleTypes.ProposalKind.Dissolve, 0, "");
         vm.prank(bob);
@@ -247,10 +248,10 @@ contract PooledTest is BaseTest {
         assertEq(uint8(governor.proposalState(c, id)), uint8(CircleTypes.ProposalState.Cancelled));
     }
 
-    function testFuzz_fixedTerm_claimsNeverExceedPool(uint96 extraA, uint96 extraB) public {
+    function testFuzz_emergency_claimsNeverExceedPool(uint96 extraA, uint96 extraB) public {
         uint256 a = bound(uint256(extraA), 1, 10_000 * UNIT);
         uint256 b = bound(uint256(extraB), 1, 10_000 * UNIT);
-        SavingsCircle c = _pooled(_baseParams(CircleTypes.Model.FixedTerm));
+        SavingsCircle c = _pooled(_baseParams(CircleTypes.Model.Emergency));
         _pay(c, alice, 0);
         _pay(c, bob, 0);
         vm.prank(alice);

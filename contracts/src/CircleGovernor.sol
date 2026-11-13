@@ -14,6 +14,9 @@ import {CircleFactory} from "./CircleFactory.sol";
 contract CircleGovernor {
     uint256 private constant BPS = 10_000;
     uint256 public constant MAX_REASON_LENGTH = 280;
+    uint256 public constant MAX_PROPOSALS = 500;
+    /// @notice A single withdrawal request can take at most half of the pool.
+    uint256 public constant MAX_REQUEST_BPS = 5_000;
 
     CircleFactory public immutable factory;
 
@@ -44,6 +47,9 @@ contract CircleGovernor {
     error ProposalNotApproved();
     error AlreadyVoted();
     error CannotVoteOwnRequest();
+    error NotUpToDate();
+    error TooManyProposals();
+    error AlreadyMatured();
 
     constructor(CircleFactory factory_) {
         factory = factory_;
@@ -59,12 +65,14 @@ contract CircleGovernor {
         _checkVoter(circle, msg.sender);
         if (p.model == CircleTypes.Model.Rotating) revert WrongModel();
         if (bytes(reason).length > MAX_REASON_LENGTH) revert InvalidProposal();
+        if (block.timestamp >= circle.maturity()) revert AlreadyMatured();
+        if (_proposals[address(circle)].length >= MAX_PROPOSALS) revert TooManyProposals();
 
         uint256 voters = circle.activeParticipants();
         bool isDissolve = kind == CircleTypes.ProposalKind.Dissolve;
         if (!isDissolve) {
             if (p.model != CircleTypes.Model.Emergency) revert WrongModel();
-            if (amount == 0 || amount > circle.poolBalance()) revert InvalidAmount();
+            if (amount == 0 || amount > (circle.poolBalance() * MAX_REQUEST_BPS) / BPS) revert InvalidAmount();
             voters -= 1; // requesters do not vote on their own request
         } else {
             amount = 0;
@@ -91,8 +99,8 @@ contract CircleGovernor {
 
     function vote(SavingsCircle circle, uint256 id, bool support) external {
         _checkActive(circle);
-        _checkVoter(circle, msg.sender);
         if (proposalState(circle, id) != CircleTypes.ProposalState.Pending) revert ProposalNotPending();
+        _checkVoter(circle, msg.sender);
         CircleTypes.Proposal storage prop = _proposals[address(circle)][id];
         if (prop.kind == CircleTypes.ProposalKind.Withdrawal && msg.sender == prop.proposer) {
             revert CannotVoteOwnRequest();
@@ -122,7 +130,10 @@ contract CircleGovernor {
     }
 
     function cancel(SavingsCircle circle, uint256 id) external {
-        if (proposalState(circle, id) != CircleTypes.ProposalState.Pending) revert ProposalNotPending();
+        CircleTypes.ProposalState st = proposalState(circle, id);
+        if (st != CircleTypes.ProposalState.Pending && st != CircleTypes.ProposalState.Approved) {
+            revert ProposalNotPending();
+        }
         CircleTypes.Proposal storage prop = _proposals[address(circle)][id];
         if (msg.sender != prop.proposer) revert NotAuthorized();
         prop.cancelled = true;
@@ -137,9 +148,15 @@ contract CircleGovernor {
         CircleTypes.Proposal storage prop = list[id];
         if (prop.executed) return CircleTypes.ProposalState.Executed;
         if (prop.cancelled) return CircleTypes.ProposalState.Cancelled;
-        uint256 needed = uint256(circle.params().approvalBps) * prop.eligibleVoters;
-        if (uint256(prop.yesVotes) * BPS >= needed) return CircleTypes.ProposalState.Approved;
         if (circle.status() != CircleTypes.Status.Active) return CircleTypes.ProposalState.Expired;
+        CircleTypes.CircleParams memory p = circle.params();
+        uint256 needed = uint256(p.approvalBps) * prop.eligibleVoters;
+        if (uint256(prop.yesVotes) * BPS >= needed) {
+            // an approval must be carried out within one more voting period
+            return block.timestamp > uint256(prop.deadline) + p.votingPeriod
+                ? CircleTypes.ProposalState.Expired
+                : CircleTypes.ProposalState.Approved;
+        }
         if (uint256(prop.eligibleVoters - prop.noVotes) * BPS < needed) return CircleTypes.ProposalState.Rejected;
         if (block.timestamp > prop.deadline) return CircleTypes.ProposalState.Expired;
         return CircleTypes.ProposalState.Pending;
@@ -184,5 +201,6 @@ contract CircleGovernor {
     function _checkVoter(SavingsCircle circle, address account) internal view {
         CircleTypes.Member memory m = circle.getMember(account);
         if (!m.active || m.exited) revert NotMember();
+        if (!circle.isUpToDate(account)) revert NotUpToDate();
     }
 }

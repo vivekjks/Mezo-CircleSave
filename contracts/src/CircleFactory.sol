@@ -19,6 +19,8 @@ contract CircleFactory is Ownable2Step, Pausable, ICircleFactory {
     using SafeERC20 for IERC20;
 
     uint16 public constant MAX_FEE_BPS = 200; // 2% hard cap
+    /// @notice A pause lifts itself after this long, so funds can never be frozen indefinitely.
+    uint64 public constant MAX_PAUSE = 14 days;
 
     IERC20 public immutable token;
     address public immutable implementation;
@@ -26,6 +28,8 @@ contract CircleFactory is Ownable2Step, Pausable, ICircleFactory {
     address public feeRecipient;
     uint16 public feeBps;
     address public governor;
+    uint64 public pausedAt;
+    uint64 internal _unpausedAt;
 
     uint256 public totalValueContributed;
     uint256 public totalValuePaidOut;
@@ -56,6 +60,8 @@ contract CircleFactory is Ownable2Step, Pausable, ICircleFactory {
     error ZeroAddress();
     error InvalidMeta();
     error GovernorAlreadySet();
+    error InvalidParent();
+    error RenounceDisabled();
 
     modifier onlyCircle() {
         if (!isCircle[msg.sender]) revert NotCircle();
@@ -88,6 +94,7 @@ contract CircleFactory is Ownable2Step, Pausable, ICircleFactory {
         if (nameLen == 0 || nameLen > 64 || bytes(meta.description).length > 600 || bytes(meta.rules).length > 2000) {
             revert InvalidMeta();
         }
+        if (p.parent != address(0) && !isCircle[p.parent]) revert InvalidParent();
         circle = Clones.clone(implementation);
         _meta[circle] = meta;
         isCircle[circle] = true;
@@ -186,8 +193,15 @@ contract CircleFactory is Ownable2Step, Pausable, ICircleFactory {
         return _reputation[account];
     }
 
+    /// @notice Paused only while the owner's pause is younger than {MAX_PAUSE}.
     function paused() public view override(Pausable, ICircleFactory) returns (bool) {
-        return super.paused();
+        return super.paused() && block.timestamp < uint256(pausedAt) + MAX_PAUSE;
+    }
+
+    /// @notice When payments last resumed: an explicit unpause, or the automatic expiry.
+    function unpausedAt() public view returns (uint64) {
+        if (super.paused() && block.timestamp >= uint256(pausedAt) + MAX_PAUSE) return pausedAt + MAX_PAUSE;
+        return _unpausedAt;
     }
 
     // ─────────────────────────────────────────────────────────────── admin
@@ -214,9 +228,16 @@ contract CircleFactory is Ownable2Step, Pausable, ICircleFactory {
     ///         Leaving open circles, cancelling and withdrawing collateral stay available.
     function pause() external onlyOwner {
         _pause();
+        pausedAt = uint64(block.timestamp);
     }
 
     function unpause() external onlyOwner {
         _unpause();
+        _unpausedAt = uint64(block.timestamp);
+    }
+
+    /// @notice Disabled: an ownerless factory could be left paused with no way to recover.
+    function renounceOwnership() public view override onlyOwner {
+        revert RenounceDisabled();
     }
 }

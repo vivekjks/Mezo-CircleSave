@@ -23,6 +23,9 @@ library CircleTypes {
         Cancelled // never started, collateral refundable
     }
 
+    /// @dev `Random` is kept for ABI stability but rejected: Mezo exposes no on-chain
+    ///      randomness (BLOCKHASH and PREVRANDAO return zero), so a "random" order could be
+    ///      predicted or steered by whoever starts the circle.
     enum PayoutOrder {
         JoinOrder,
         Random,

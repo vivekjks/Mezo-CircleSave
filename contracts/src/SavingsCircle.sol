@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -25,10 +26,13 @@ contract SavingsCircle is Initializable, ReentrancyGuard {
     uint16 public constant MAX_MEMBERS = 50;
     uint16 public constant MAX_ROUNDS = 120;
     uint32 public constant MIN_PERIOD = 5 minutes;
-    uint32 public constant MAX_PERIOD = 365 days;
-    uint32 public constant MIN_VOTING_PERIOD = 5 minutes;
-    uint32 public constant MAX_VOTING_PERIOD = 30 days;
+    uint32 internal constant MAX_PERIOD = 365 days;
+    uint32 internal constant MIN_VOTING_PERIOD = 5 minutes;
+    uint32 internal constant MAX_VOTING_PERIOD = 30 days;
     uint16 public constant MAX_EXIT_PENALTY_BPS = 5_000;
+    uint256 public constant MIN_CONTRIBUTION = 1e16; // 0.01 MUSD
+    uint256 public constant MAX_AMOUNT = 1e30; // keeps every product of amounts far from overflow
+    uint256 internal constant MAX_RESUME_GRACE = 2 days;
 
     // ─────────────────────────────────────────────────────────────── storage
 
@@ -50,16 +54,16 @@ contract SavingsCircle is Initializable, ReentrancyGuard {
     bool public goalReached;
     bool public finalized;
     bool public refundMode;
-    bool public equalSplit;
+    bool internal equalSplit;
 
     uint256 public totalContributed;
     uint256 public totalPaidOut;
     uint256 public collateralHeld;
     uint256 public makeWholeReserve; // cumulative MUSD withheld from defaulters / repaid debt
-    uint256 public reserveClaimed;
-    uint256 public totalShortfall;
+    uint256 internal reserveClaimed;
+    uint256 internal totalShortfall;
     uint256 public distributable;
-    uint256 public distributionWeight;
+    uint256 internal distributionWeight;
 
     address[] internal _members;
     mapping(address => CircleTypes.Member) internal _member;
@@ -68,10 +72,13 @@ contract SavingsCircle is Initializable, ReentrancyGuard {
     mapping(address => uint256) internal _missedBits; // bit r set = round r settled without payment
     address[] internal _payoutOrder;
 
-    mapping(uint256 => uint256) public roundCollected;
-    mapping(uint256 => uint16) public roundPaidCount;
+    mapping(uint256 => uint256) internal roundCollected;
+    mapping(uint256 => uint16) internal roundPaidCount;
 
     CircleTypes.Activity[] internal _activities;
+
+    /// @notice Addresses the creator removed; they cannot join this circle again.
+    mapping(address => bool) public banned;
 
     // ─────────────────────────────────────────────────────────────── events
 
@@ -111,6 +118,7 @@ contract SavingsCircle is Initializable, ReentrancyGuard {
     error InsufficientPool();
     error ProtocolPaused();
     error NoDebt();
+    error Banned();
 
     constructor() {
         _disableInitializers();
@@ -143,7 +151,7 @@ contract SavingsCircle is Initializable, ReentrancyGuard {
         external
         initializer
     {
-        _validate(p);
+        _validate(p, token_);
         factory = ICircleFactory(msg.sender);
         token = IERC20(token_);
         creator = creator_;
@@ -154,20 +162,30 @@ contract SavingsCircle is Initializable, ReentrancyGuard {
         if (p.creatorJoins) _addMember(creator_);
     }
 
-    function _validate(CircleTypes.CircleParams calldata p) internal view {
-        bool bad = p.contributionAmount == 0 || p.maxMembers < 2 || p.maxMembers > MAX_MEMBERS
+    function _validate(CircleTypes.CircleParams calldata p, address token_) internal view {
+        address ben = p.beneficiary;
+        bool bad = p.contributionAmount < MIN_CONTRIBUTION || p.contributionAmount > MAX_AMOUNT
+            || p.collateralAmount > MAX_AMOUNT || p.goalAmount > MAX_AMOUNT
+            || p.payoutOrder == CircleTypes.PayoutOrder.Random
+            || (ben != address(0)
+                && (ben == address(this) || ben == msg.sender || ben == token_ || ben == ICircleFactory(msg.sender).governor()))
+            || p.maxMembers < 2 || p.maxMembers > MAX_MEMBERS
             || p.periodDuration < MIN_PERIOD || p.periodDuration > MAX_PERIOD || p.joinDeadline <= block.timestamp
             || p.approvalBps <= 5_000 || p.approvalBps > BPS;
 
         if (p.model == CircleTypes.Model.Rotating) {
-            bad = bad || p.goalAmount != 0 || p.beneficiary != address(0) || p.earlyExitPenaltyBps != 0;
+            // public rotating circles must hold at least one round of deposit per member
+            bad = bad || p.goalAmount != 0 || ben != address(0) || p.earlyExitPenaltyBps != 0
+                || (p.inviteSigner == address(0) && p.collateralAmount < p.contributionAmount);
         } else {
             bad = bad || p.totalRounds == 0 || p.totalRounds > MAX_ROUNDS || p.collateralAmount != 0
                 || p.votingPeriod < MIN_VOTING_PERIOD || p.votingPeriod > MAX_VOTING_PERIOD
                 || (p.model != CircleTypes.Model.Goal && (p.goalAmount != 0 || p.beneficiary != address(0)))
                 || (p.model == CircleTypes.Model.FixedTerm
                     ? p.earlyExitPenaltyBps > MAX_EXIT_PENALTY_BPS
-                    : p.earlyExitPenaltyBps != 0);
+                    : p.earlyExitPenaltyBps != 0)
+                // emergency pools vote on withdrawals, so they must be invite-only (no sybils)
+                || (p.model == CircleTypes.Model.Emergency && p.inviteSigner == address(0));
         }
         if (bad) revert InvalidParams();
     }
@@ -176,9 +194,10 @@ contract SavingsCircle is Initializable, ReentrancyGuard {
 
     /// @notice Join an open circle. Private circles need a signature from the invite key
     ///         over {inviteDigest}(msg.sender); the key lives in the creator's invite link.
-    function join(bytes calldata inviteSignature) external nonReentrant {
+    function join(bytes calldata inviteSignature) public nonReentrant {
         _notPaused();
         _onlyStatus(CircleTypes.Status.Open);
+        if (banned[msg.sender]) revert Banned();
         if (block.timestamp > _params.joinDeadline) revert JoinClosed();
         if (_member[msg.sender].active) revert AlreadyMember();
         if (_members.length >= _params.maxMembers) revert CircleFull();
@@ -203,6 +222,7 @@ contract SavingsCircle is Initializable, ReentrancyGuard {
         _onlyStatus(CircleTypes.Status.Open);
         if (msg.sender != creator || account == creator) revert NotAuthorized();
         if (!_member[account].active) revert NotMember();
+        banned[account] = true;
         _removeMember(account, true);
     }
 
@@ -227,6 +247,7 @@ contract SavingsCircle is Initializable, ReentrancyGuard {
     function start() external nonReentrant {
         _notPaused();
         _onlyStatus(CircleTypes.Status.Open);
+        if (block.timestamp > _params.joinDeadline) revert JoinClosed();
         uint256 count = _members.length;
         if (count < 2) revert NotEnoughMembers();
         if (msg.sender != creator && (!_member[msg.sender].active || count < _params.maxMembers)) {
@@ -264,15 +285,16 @@ contract SavingsCircle is Initializable, ReentrancyGuard {
 
     /// @notice Pay the scheduled contribution for `round` (current or an earlier unpaid one).
     /// @dev Funds are pulled through the factory, so members approve MUSD once for all circles.
-    function contribute(uint16 round) external nonReentrant {
+    function contribute(uint16 round) public nonReentrant {
         _notPaused();
         _onlyStatus(CircleTypes.Status.Active);
         CircleTypes.Member storage m = _activeMember();
         if (round >= totalRounds || round > _elapsedRounds()) revert InvalidRound();
         if (_isRotating()) {
             if (round < roundsSettled) revert InvalidRound();
-        } else if (goalReached) {
-            revert GoalAlreadyReached();
+        } else {
+            if (goalReached) revert GoalAlreadyReached();
+            if (block.timestamp >= maturity()) revert AlreadyMatured();
         }
         uint256 bit = uint256(1) << round;
         if (_paidBits[msg.sender] & bit != 0) revert AlreadyPaid();
@@ -302,9 +324,11 @@ contract SavingsCircle is Initializable, ReentrancyGuard {
         _notPaused();
         _onlyStatus(CircleTypes.Status.Active);
         CircleTypes.Member storage m = _activeMember();
-        if (_isRotating()) revert WrongModel();
-        if (amount == 0) revert InvalidAmount();
+        // fixed-term shares are by scheduled payments only, so late top-ups cannot snipe penalties
+        if (_isRotating() || _params.model == CircleTypes.Model.FixedTerm) revert WrongModel();
+        if (amount == 0 || amount > MAX_AMOUNT) revert InvalidAmount();
         if (goalReached) revert GoalAlreadyReached();
+        if (block.timestamp >= maturity()) revert AlreadyMatured();
 
         m.contributed += amount;
         totalContributed += amount;
@@ -331,7 +355,8 @@ contract SavingsCircle is Initializable, ReentrancyGuard {
         if (!_isRotating()) revert WrongModel();
         uint16 r = roundsSettled;
         uint256 count = _members.length;
-        if (roundPaidCount[r] < count && block.timestamp <= roundDeadline(r)) revert RoundNotDue();
+        if (_payoutOrder.length != count) revert PayoutOrderNotSet();
+        if (roundPaidCount[r] < count && block.timestamp <= settleNotBefore(r)) revert RoundNotDue();
 
         uint256 amount = _params.contributionAmount;
         uint256 pot = roundCollected[r];
@@ -455,8 +480,8 @@ contract SavingsCircle is Initializable, ReentrancyGuard {
     }
 
     /// @notice Claim your share after finalization.
+    /// @dev Deliberately not blocked by the protocol pause: shares are fixed at finalization.
     function claim() external nonReentrant {
-        _notPaused();
         if (!finalized) revert WrongStatus();
         (uint256 gross, uint256 fee) = claimable(msg.sender);
         if (gross == 0) revert NothingToClaim();
@@ -493,7 +518,7 @@ contract SavingsCircle is Initializable, ReentrancyGuard {
             CircleTypes.Member storage m = _member[_members[i]];
             if (m.exited) continue;
             weight += _weight(m);
-            participants += 1;
+            if (m.contributed != 0) participants += 1;
         }
         if (weight == 0 && participants != 0) {
             equalSplit = true;
@@ -550,6 +575,35 @@ contract SavingsCircle is Initializable, ReentrancyGuard {
     {
         _onlyGovernor();
         _log(kind, actor, proposalId, amount);
+    }
+
+    // ─────────────────────────────────────────────────────────────── MUSD permit
+
+    /// @notice Join in one transaction: an EIP-2612 permit for the factory (the single MUSD
+    ///         spender) is applied first, so no separate approval is needed for the deposit.
+    function joinWithPermit(
+        bytes calldata inviteSignature,
+        uint256 value,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external {
+        _permit(value, deadline, v, r, s);
+        join(inviteSignature);
+    }
+
+    /// @notice Pay a round in one transaction using an EIP-2612 permit (see {joinWithPermit}).
+    function contributeWithPermit(uint16 round, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
+        external
+    {
+        _permit(value, deadline, v, r, s);
+        contribute(round);
+    }
+
+    /// @dev Tolerates a front-run permit: if it was already used, the allowance is in place.
+    function _permit(uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) internal {
+        try IERC20Permit(address(token)).permit(msg.sender, address(factory), value, deadline, v, r, s) {} catch {}
     }
 
     // ─────────────────────────────────────────────────────────────── internals
@@ -615,15 +669,6 @@ contract SavingsCircle is Initializable, ReentrancyGuard {
             return;
         }
         address[] memory order = _members;
-        if (mode == CircleTypes.PayoutOrder.Random) {
-            uint256 seed =
-                uint256(keccak256(abi.encode(blockhash(block.number - 1), address(this), block.timestamp, msg.sender)));
-            for (uint256 i = count - 1; i > 0; --i) {
-                seed = uint256(keccak256(abi.encode(seed, i)));
-                uint256 j = seed % (i + 1);
-                (order[i], order[j]) = (order[j], order[i]);
-            }
-        }
         for (uint256 i; i < count; ++i) {
             _payoutOrder.push(order[i]);
             _member[order[i]].payoutRound = uint16(i + 1);
@@ -695,6 +740,26 @@ contract SavingsCircle is Initializable, ReentrancyGuard {
         return uint256(startTime) + (round + 1) * _params.periodDuration;
     }
 
+    /// @notice Earliest time an unpaid round can be settled. After a protocol pause, members
+    ///         get a grace period (one period, at most two days) to catch up first.
+    function settleNotBefore(uint256 round) public view returns (uint256 t) {
+        t = roundDeadline(round);
+        uint256 grace = _params.periodDuration < MAX_RESUME_GRACE ? _params.periodDuration : MAX_RESUME_GRACE;
+        uint256 resumed = uint256(factory.unpausedAt()) + grace;
+        if (resumed > t) t = resumed;
+    }
+
+    /// @notice True for an active member who has paid something and every round whose
+    ///         deadline has passed. Only such members can propose and vote.
+    function isUpToDate(address account) external view returns (bool) {
+        CircleTypes.Member storage m = _member[account];
+        if (!m.active || m.exited || m.contributed == 0) return false;
+        uint256 due = _elapsedRounds();
+        if (due > totalRounds) due = totalRounds;
+        uint256 mask = (uint256(1) << due) - 1;
+        return _paidBits[account] & mask == mask;
+    }
+
     function maturity() public view returns (uint256) {
         if (startTime == 0) return 0;
         return uint256(startTime) + uint256(totalRounds) * _params.periodDuration;
@@ -711,7 +776,7 @@ contract SavingsCircle is Initializable, ReentrancyGuard {
         if (!finalized || distributionWeight == 0) return (0, 0);
         CircleTypes.Member storage m = _member[account];
         if (!m.active || m.exited || m.claimed) return (0, 0);
-        uint256 w = equalSplit ? 1 : _weight(m);
+        uint256 w = equalSplit ? (m.contributed != 0 ? 1 : 0) : _weight(m);
         gross = (distributable * w) / distributionWeight;
         fee = refundMode ? 0 : (gross * feeBps) / BPS;
     }
@@ -719,6 +784,7 @@ contract SavingsCircle is Initializable, ReentrancyGuard {
     function reserveClaimable(address account) public view returns (uint256) {
         if (status != CircleTypes.Status.Completed || totalShortfall == 0) return 0;
         CircleTypes.Member storage m = _member[account];
+        if (m.debt != 0) return 0; // repay what you owe before taking from the reserve
         uint256 entitled = (makeWholeReserve * m.shortfallSuffered) / totalShortfall;
         if (entitled > m.shortfallSuffered) entitled = m.shortfallSuffered;
         return entitled > m.reserveClaimed ? entitled - m.reserveClaimed : 0;

@@ -8,13 +8,14 @@ import { useCircle, useMembers, useProtocolStats } from "@/lib/hooks";
 import { bpsToPercent, periodLabel, toMusd } from "@/lib/format";
 import { MODEL_INFO, statusInfo } from "@/lib/circle-logic";
 import { explorerAddress } from "@/lib/wagmi";
+import { demoCircles } from "@/lib/contracts/deployment";
 import { Ledger } from "./ledger";
 import { ModelIcon } from "./model-art";
 import { RotationDemo, DEMO_MEMBERS, type DemoPhase } from "./ring";
 import { Chip, Skeleton, cx } from "./ui";
 
-/** A real circle that ran end to end on Mezo Testnet. */
-export const SHOWCASE_CIRCLE = "0xBe5Cac8e3Ec0b58B1f59f7C9D9184b8fE76527ba" as Address;
+/** A real circle that ran end to end on Mezo Testnet (from scripts/e2e-testnet.ts). */
+export const SHOWCASE_CIRCLE = (demoCircles.rotating ?? undefined) as Address | undefined;
 
 export function LiveStats() {
   const { data } = useProtocolStats();
@@ -37,6 +38,11 @@ export function LiveStats() {
 }
 
 export function LiveCirclePreview() {
+  if (!SHOWCASE_CIRCLE) return null;
+  return <CirclePreviewCard circle={SHOWCASE_CIRCLE} />;
+}
+
+function CirclePreviewCard({ circle: SHOWCASE_CIRCLE }: { circle: Address }) {
   const summary = useCircle(SHOWCASE_CIRCLE);
   const members = useMembers(SHOWCASE_CIRCLE);
   const s = summary.data;
