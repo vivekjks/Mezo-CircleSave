@@ -28,7 +28,7 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-30 border-b border-rule bg-white">
       <NetworkBanner />
-      <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-5">
+      <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-5 md:gap-6">
         <Logo />
         <nav className="hidden items-center gap-1 md:flex" aria-label="Main">
           {NAV.map((n) => {
@@ -49,12 +49,12 @@ export function SiteHeader() {
             );
           })}
         </nav>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-1 sm:gap-2">
           <NetworkBadge />
           <NotificationBell />
           <WalletButton />
           <button
-            className="rounded-lg p-2 text-ink md:hidden"
+            className="-mr-1.5 rounded-lg p-2 text-ink md:hidden"
             onClick={() => setOpenOn(open ? null : path)}
             aria-label={open ? "Close menu" : "Open menu"}
             aria-expanded={open}
@@ -112,7 +112,7 @@ function NotificationBell() {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="relative rounded-[var(--radius-control)] p-2.5 text-ink-soft transition-colors hover:bg-ink/5 hover:text-ink"
+        className="relative rounded-[var(--radius-control)] p-2 text-ink-soft transition-colors hover:bg-ink/5 hover:text-ink sm:p-2.5"
         aria-label={`Reminders${tasks.length ? `, ${tasks.length} items` : ""}`}
         aria-expanded={open}
       >
@@ -129,7 +129,8 @@ function NotificationBell() {
         )}
       </button>
       {open && (
-        <div className="absolute right-0 z-40 mt-2 w-[min(92vw,380px)] rounded-[16px] border border-rule bg-surface">
+        // on phones the bell sits mid-row, so the panel spans the screen instead of hanging off its left edge
+        <div className="fixed inset-x-4 top-[68px] z-40 rounded-[16px] border border-rule bg-surface sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 sm:w-[380px]">
           <div className="flex items-center justify-between border-b border-rule px-4 py-3">
             <span className="font-semibold text-ink">Reminders</span>
             <ReminderToggle />
