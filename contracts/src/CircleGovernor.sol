@@ -62,10 +62,10 @@ contract CircleGovernor {
         returns (uint256 id)
     {
         CircleTypes.CircleParams memory p = _checkActive(circle);
-        _checkVoter(circle, msg.sender);
         if (p.model == CircleTypes.Model.Rotating) revert WrongModel();
-        if (bytes(reason).length > MAX_REASON_LENGTH) revert InvalidProposal();
         if (block.timestamp >= circle.maturity()) revert AlreadyMatured();
+        _checkVoter(circle, msg.sender);
+        if (bytes(reason).length > MAX_REASON_LENGTH) revert InvalidProposal();
         if (_proposals[address(circle)].length >= MAX_PROPOSALS) revert TooManyProposals();
 
         uint256 voters = circle.activeParticipants();
