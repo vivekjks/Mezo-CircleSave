@@ -8,7 +8,13 @@ export function toMusd(value: bigint | undefined, maxFraction = 2): string {
   // small amounts always keep cents so 1.5 never reads as 2
   const abs = Math.abs(n);
   const fraction = n !== 0 && abs < 1 ? Math.max(maxFraction, 4) : abs < 1000 ? Math.max(maxFraction, 2) : maxFraction;
-  return n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: fraction });
+  // truncate, never round up: a 1.995 MUSD payout (2 MUSD less the fee) must not read as 2, and a
+  // 2.985 balance must not read as 2.99 when the user tries to pay exactly that
+  return n.toLocaleString("en-US", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: fraction,
+    roundingMode: "trunc",
+  } as Intl.NumberFormatOptions);
 }
 
 export function parseMusd(input: string): bigint | null {
