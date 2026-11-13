@@ -1,0 +1,23 @@
+# ── secrets (never commit) ─────────────────────────
+.env
+.env.*
+!.env.example
+**/.env.ops
+*.pem
+
+# ── dependencies / build output ────────────────────
+node_modules/
+web/.next/
+web/out/
+web/next-env.d.ts
+web/*.tsbuildinfo
+contracts/out/
+contracts/cache/
+contracts/broadcast/**/dry-run/
+
+# ── tooling ────────────────────────────────────────
+.vercel
+.DS_Store
+*.log
+
+.playwright-mcp/
