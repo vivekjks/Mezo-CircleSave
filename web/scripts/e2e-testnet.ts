@@ -283,9 +283,9 @@ async function main() {
   await createCircle(
     "openRotating",
     "Weekly Neighbourhood Tanda",
-    "Open to anyone on testnet: six people, 2 MUSD a week, everyone takes the pot once.",
-    "Pay every week before the deadline. Your 1 MUSD deposit covers a missed week.",
-    { model: 0, contribution: "2", collateral: "1", period: 604800, maxMembers: 6, joinWindow: 14 * 86400, payoutOrder: 1 },
+    "Open to anyone on testnet: six people, 2 MUSD a week, in join order. Everyone takes the pot once.",
+    "Pay every week before the deadline. Your 2 MUSD deposit covers a missed week.",
+    { model: 0, contribution: "2", collateral: "2", period: 604800, maxMembers: 6, joinWindow: 14 * 86400 },
   );
   await createCircle(
     "openFixed",

@@ -8,6 +8,19 @@ export const savingsCircleAbi = [
   },
   {
     "type": "function",
+    "name": "MAX_AMOUNT",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "MAX_EXIT_PENALTY_BPS",
     "inputs": [],
     "outputs": [
@@ -34,19 +47,6 @@ export const savingsCircleAbi = [
   },
   {
     "type": "function",
-    "name": "MAX_PERIOD",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint32",
-        "internalType": "uint32"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "MAX_ROUNDS",
     "inputs": [],
     "outputs": [
@@ -60,13 +60,13 @@ export const savingsCircleAbi = [
   },
   {
     "type": "function",
-    "name": "MAX_VOTING_PERIOD",
+    "name": "MIN_CONTRIBUTION",
     "inputs": [],
     "outputs": [
       {
         "name": "",
-        "type": "uint32",
-        "internalType": "uint32"
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -74,19 +74,6 @@ export const savingsCircleAbi = [
   {
     "type": "function",
     "name": "MIN_PERIOD",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint32",
-        "internalType": "uint32"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "MIN_VOTING_PERIOD",
     "inputs": [],
     "outputs": [
       {
@@ -119,6 +106,25 @@ export const savingsCircleAbi = [
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "banned",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "stateMutability": "view"
@@ -182,6 +188,44 @@ export const savingsCircleAbi = [
         "name": "round",
         "type": "uint16",
         "internalType": "uint16"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "contributeWithPermit",
+    "inputs": [
+      {
+        "name": "round",
+        "type": "uint16",
+        "internalType": "uint16"
+      },
+      {
+        "name": "value",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "deadline",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "v",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "r",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "s",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "outputs": [],
@@ -254,19 +298,6 @@ export const savingsCircleAbi = [
   },
   {
     "type": "function",
-    "name": "distributionWeight",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "endedAt",
     "inputs": [],
     "outputs": [
@@ -274,19 +305,6 @@ export const savingsCircleAbi = [
         "name": "",
         "type": "uint64",
         "internalType": "uint64"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "equalSplit",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
       }
     ],
     "stateMutability": "view"
@@ -755,12 +773,69 @@ export const savingsCircleAbi = [
   },
   {
     "type": "function",
+    "name": "isUpToDate",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "join",
     "inputs": [
       {
         "name": "inviteSignature",
         "type": "bytes",
         "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "joinWithPermit",
+    "inputs": [
+      {
+        "name": "inviteSignature",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "value",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "deadline",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "v",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "r",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "s",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "outputs": [],
@@ -1002,38 +1077,6 @@ export const savingsCircleAbi = [
   },
   {
     "type": "function",
-    "name": "reserveClaimed",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "roundCollected",
-    "inputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "roundDeadline",
     "inputs": [
       {
@@ -1047,25 +1090,6 @@ export const savingsCircleAbi = [
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "roundPaidCount",
-    "inputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint16",
-        "internalType": "uint16"
       }
     ],
     "stateMutability": "view"
@@ -1095,6 +1119,25 @@ export const savingsCircleAbi = [
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "settleNotBefore",
+    "inputs": [
+      {
+        "name": "round",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "t",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -1203,19 +1246,6 @@ export const savingsCircleAbi = [
   },
   {
     "type": "function",
-    "name": "totalShortfall",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "withdraw",
     "inputs": [],
     "outputs": [],
@@ -1306,6 +1336,11 @@ export const savingsCircleAbi = [
   {
     "type": "error",
     "name": "AlreadyPaid",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "Banned",
     "inputs": []
   },
   {
@@ -1487,6 +1522,19 @@ export const circleFactoryAbi = [
         "name": "",
         "type": "uint16",
         "internalType": "uint16"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_PAUSE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
       }
     ],
     "stateMutability": "view"
@@ -1950,6 +1998,19 @@ export const circleFactoryAbi = [
   },
   {
     "type": "function",
+    "name": "pausedAt",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "pendingOwner",
     "inputs": [],
     "outputs": [
@@ -1984,7 +2045,7 @@ export const circleFactoryAbi = [
     "name": "renounceOwnership",
     "inputs": [],
     "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -2136,6 +2197,19 @@ export const circleFactoryAbi = [
     "inputs": [],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "unpausedAt",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "event",
@@ -2341,6 +2415,11 @@ export const circleFactoryAbi = [
   },
   {
     "type": "error",
+    "name": "InvalidParent",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "NotCircle",
     "inputs": []
   },
@@ -2365,6 +2444,11 @@ export const circleFactoryAbi = [
         "internalType": "address"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "RenounceDisabled",
+    "inputs": []
   },
   {
     "type": "error",
@@ -2398,7 +2482,33 @@ export const circleGovernorAbi = [
   },
   {
     "type": "function",
+    "name": "MAX_PROPOSALS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "MAX_REASON_LENGTH",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_REQUEST_BPS",
     "inputs": [],
     "outputs": [
       {
@@ -2885,6 +2995,11 @@ export const circleGovernorAbi = [
   },
   {
     "type": "error",
+    "name": "AlreadyMatured",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "AlreadyVoted",
     "inputs": []
   },
@@ -2920,6 +3035,11 @@ export const circleGovernorAbi = [
   },
   {
     "type": "error",
+    "name": "NotUpToDate",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "ProposalNotApproved",
     "inputs": []
   },
@@ -2931,6 +3051,11 @@ export const circleGovernorAbi = [
   {
     "type": "error",
     "name": "ProtocolPaused",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TooManyProposals",
     "inputs": []
   },
   {

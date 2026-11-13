@@ -2,11 +2,20 @@
 
 export const deployment = {
   chainId: 31611,
-  deployBlock: 16730055n,
+  deployBlock: 16753016n,
   musd: "0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503",
-  factory: "0x0C19cc4166aBC4E67556992C5BfD84A2c147C995",
-  governor: "0x1FA98390A2E566c7F687834b9baF2396ADDCBf98",
-  lens: "0x81AB031F71e76E13438B68da61458Bbbf10102E6",
-  faucet: "0x1B2cF8203b05FBB30efEe84531Af42317C793aef",
-  implementation: "0xEC300fF5A99A499454C13082f7Aa86E8C9b3691E",
+  factory: "0x08ED77459FeAEC0346a07621534A55c34BE1684c",
+  governor: "0xe6893C4A6E2cbd388d687677EEB35A6055725BB3",
+  lens: "0x0cE07B5825fBD23D9070FC348695ddE2E109306d",
+  faucet: "0x5a8c02A8634f0D689b845aF50d4548B09Db6ceE7",
+  implementation: "0x8330C0FFd0D4781b6EA0951C4211d8ff8bC8be0f",
 } as const;
+
+/** Circles from the live end-to-end run, shown on the landing page and in the README. */
+export const demoCircles: Record<"rotating" | "emergency" | "goal" | "openRotating" | "openFixed", `0x${string}` | null> = {
+  rotating: null,
+  emergency: null,
+  goal: null,
+  openRotating: null,
+  openFixed: null,
+};
