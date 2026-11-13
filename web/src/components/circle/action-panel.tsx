@@ -7,7 +7,11 @@ import { CalendarPlus, LogOut, Share2 } from "lucide-react";
 import { savingsCircleAbi, circleGovernorAbi, ADDR, Model, Status, ProposalKind, type MemberView, type Position, type Summary } from "@/lib/contracts";
 import { canFinalize, canSettle, maturity, payableRounds, remainingCommitment, roundDeadline } from "@/lib/circle-logic";
 import { bpsToPercent, formatDate, parseMusd, relativeTime, shortAddress, toMusd } from "@/lib/format";
-import { useMusdSpend, useTx } from "@/lib/hooks";
+import { useMusdPermit, useMusdSpend, useTx } from "@/lib/hooks";
+import { humanizeError } from "@/lib/errors";
+import { toast } from "sonner";
+import { useReadContract } from "wagmi";
+import { SwapToMusd } from "@/components/swap-to-musd";
 import { downloadIcs } from "@/lib/ics";
 import { ConnectButton } from "@/components/wallet";
 import { AmountInput, Button, Dialog, Field, Panel, cx, inputClass } from "@/components/ui";
@@ -149,7 +153,9 @@ function OpenActions({ s, user, t, isMember, isCreator, hasInviteKey, onJoin, jo
               </>
             )}
           </p>
-          {s.params.collateralAmount > 0n && !spend.hasBalance(s.params.collateralAmount) && <LowBalance />}
+          {s.params.collateralAmount > 0n && !spend.hasBalance(s.params.collateralAmount) && (
+            <LowBalance need={s.params.collateralAmount - (spend.balance ?? 0n)} />
+          )}
           <Button variant="primary" size="lg" className="w-full" loading={joining || spend.approving} onClick={onJoin}>
             {s.params.collateralAmount > 0n && spend.needsApproval(s.params.collateralAmount) ? "Approve MUSD and join" : "Join circle"}
           </Button>
@@ -157,7 +163,7 @@ function OpenActions({ s, user, t, isMember, isCreator, hasInviteKey, onJoin, jo
         </>
       )}
 
-      {isCreator && (
+      {isCreator && !closed && (
         <div className="space-y-2 border-t border-rule pt-4">
           {s.params.model === Model.Rotating && s.params.payoutOrder === 2 && (
             <Button className="w-full" onClick={() => setOrderOpen(true)} disabled={s.memberCount < 2}>
@@ -176,7 +182,7 @@ function OpenActions({ s, user, t, isMember, isCreator, hasInviteKey, onJoin, jo
           {s.memberCount < 2 && <p className="text-xs text-ink-soft">A circle needs at least 2 members to start.</p>}
         </div>
       )}
-      {!isCreator && isMember && full && (
+      {!isCreator && isMember && full && !closed && (
         <Button variant="ink" className="w-full" loading={busy === "start"} onClick={() => send("start", "Start the circle", { ...circle, functionName: "start" })}>
           Start circle
         </Button>
@@ -262,12 +268,36 @@ function ActiveActions({ s, pos, t, isMember, members, paidBits, user }: Props &
   const nextRound = payable[0];
   const remaining = pos ? remainingCommitment(s, pos.paidBits) : amount;
 
+  const permit = useMusdPermit();
+  const upToDate = useReadContract({
+    address: s.circle,
+    abi: savingsCircleAbi,
+    functionName: "isUpToDate",
+    args: user ? [user] : undefined,
+    query: { enabled: !!user && !rotating, refetchInterval: 15_000 },
+  });
+  const matured = !rotating && t >= maturity(s);
+
+  /** One signature + one transaction via MUSD permit; falls back to approve + pay. */
   const pay = async (round: number) => {
+    const label = `Pay round ${round + 1}`;
+    const success = `Round ${round + 1} paid`;
     if (spend.needsApproval(amount)) {
-      const ok = await spend.approve(remaining > amount ? remaining : amount);
-      if (!ok) return;
+      const value = remaining > amount ? remaining : amount;
+      let sig;
+      try {
+        sig = await permit(value);
+      } catch (e) {
+        toast.error(humanizeError(e));
+        return;
+      }
+      if (sig) {
+        await send(`pay-${round}`, label, { ...circle, functionName: "contributeWithPermit", args: [round, sig.value, sig.deadline, sig.v, sig.r, sig.s] }, { success });
+        return;
+      }
+      if (!(await spend.approve(value))) return;
     }
-    await send(`pay-${round}`, `Pay round ${round + 1}`, { ...circle, functionName: "contribute", args: [round] }, { success: `Round ${round + 1} paid` });
+    await send(`pay-${round}`, label, { ...circle, functionName: "contribute", args: [round] }, { success });
   };
 
   // next round this member still has to pay that isn't open yet
@@ -297,20 +327,21 @@ function ActiveActions({ s, pos, t, isMember, members, paidBits, user }: Props &
                 .
               </p>
               {payable.length > 1 && <p className="mt-1 text-sm text-ink-soft">You have {payable.length} rounds to pay. Oldest first.</p>}
-              {!spend.hasBalance(amount) && <LowBalance />}
+              {!spend.hasBalance(amount) && <LowBalance need={amount - (spend.balance ?? 0n)} />}
               <Button
                 variant="primary"
                 size="lg"
                 className="mt-4 w-full"
                 loading={busy === `pay-${nextRound}` || spend.approving}
-                disabled={!spend.hasBalance(amount)}
+                disabled={!spend.hasBalance(amount) || matured}
                 onClick={() => pay(nextRound)}
               >
-                {spend.needsApproval(amount) ? "Approve and pay" : "Pay"} {toMusd(amount)} MUSD
+                Pay {toMusd(amount)} MUSD
               </Button>
               {spend.needsApproval(amount) && (
                 <p className="mt-2 text-xs text-ink-faint">
-                  First time only: your wallet approves {toMusd(remaining > amount ? remaining : amount)} MUSD for the rest of this circle, then pays.
+                  First time only: you sign a MUSD permit covering {toMusd(remaining > amount ? remaining : amount)} MUSD for the rest of
+                  this circle, then pay in the same transaction.
                 </p>
               )}
             </div>
@@ -392,15 +423,15 @@ function ActiveActions({ s, pos, t, isMember, members, paidBits, user }: Props &
         </div>
       )}
 
-      {isMember && pos && !pos.member.exited && !rotating && (
+      {isMember && pos && !pos.member.exited && !rotating && !matured && (
         <div className="flex flex-wrap gap-2 border-t border-rule pt-4">
-          {!(s.params.model === Model.Goal && s.goalReached) && (
+          {s.params.model !== Model.FixedTerm && !(s.params.model === Model.Goal && s.goalReached) && (
             <Button size="sm" onClick={() => setDialog("topup")}>
               Add extra
             </Button>
           )}
           {s.params.model === Model.Emergency && (
-            <Button size="sm" onClick={() => setDialog("request")}>
+            <Button size="sm" disabled={upToDate.data === false} onClick={() => setDialog("request")}>
               Ask the group for help
             </Button>
           )}
@@ -409,9 +440,12 @@ function ActiveActions({ s, pos, t, isMember, members, paidBits, user }: Props &
               Leave early
             </Button>
           )}
-          <Button size="sm" variant="ghost" onClick={() => setDialog("dissolve")}>
+          <Button size="sm" variant="ghost" disabled={upToDate.data === false} onClick={() => setDialog("dissolve")}>
             Propose closing early
           </Button>
+          {upToDate.data === false && (
+            <p className="w-full text-[13px] text-ink-soft">Pay your overdue rounds to propose or vote. Only up-to-date members have a say.</p>
+          )}
         </div>
       )}
 
@@ -487,7 +521,8 @@ function ProposeDialog({ s, kind, onClose }: { s: Summary; kind: number; onClose
   const { send, busy } = useTx();
   const amount = parseMusd(v);
   const withdrawal = kind === ProposalKind.Withdrawal;
-  const tooMuch = !!amount && amount > s.poolBalance;
+  const maxRequest = s.poolBalance / 2n; // contract cap: half the pool per request
+  const tooMuch = !!amount && amount > maxRequest;
   return (
     <Dialog open onClose={onClose} title={withdrawal ? "Ask the group for help" : "Propose closing early"}>
       <p className="-mt-2 mb-5 text-sm text-ink-soft">
@@ -497,7 +532,7 @@ function ProposeDialog({ s, kind, onClose }: { s: Summary; kind: number; onClose
       </p>
       <div className="space-y-4">
         {withdrawal && (
-          <Field label="Amount" htmlFor="ask" hint={`The pool holds ${toMusd(s.poolBalance)} MUSD.`} error={tooMuch ? "That's more than the pool holds." : null}>
+          <Field label="Amount" htmlFor="ask" hint={`The pool holds ${toMusd(s.poolBalance)} MUSD. One request can take up to ${toMusd(maxRequest)} MUSD.`} error={tooMuch ? `A single request can take at most half the pool (${toMusd(maxRequest)} MUSD).` : null}>
             <AmountInput id="ask" value={v} onChange={setV} />
           </Field>
         )}
@@ -584,13 +619,22 @@ function Action({ children }: { children: ReactNode }) {
   return <div className={cx("rounded-[12px] border border-blue p-4")}>{children}</div>;
 }
 
-function LowBalance() {
+function LowBalance({ need }: { need: bigint }) {
+  const [open, setOpen] = useState(false);
   return (
-    <p className="mt-2 text-sm text-ink">
-      Your MUSD balance is too low.{" "}
+    <div className="mt-2 text-sm text-ink">
+      You need {toMusd(need > 0n ? need : 0n)} more MUSD.{" "}
+      <button type="button" className="link-quiet font-semibold" onClick={() => setOpen(true)}>
+        Swap BTC or MEZO for MUSD
+      </button>{" "}
+      or{" "}
       <Link href="/get-musd" className="link-quiet font-semibold">
-        Get test MUSD
+        get test MUSD
       </Link>
-    </p>
+      .
+      <Dialog open={open} onClose={() => setOpen(false)} title="Get MUSD on Mezo Pools">
+        <SwapToMusd needMusd={need > 0n ? need : undefined} onDone={() => setOpen(false)} />
+      </Dialog>
+    </div>
   );
 }
