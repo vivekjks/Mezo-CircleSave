@@ -5,7 +5,7 @@ import { useAccount, usePublicClient } from "wagmi";
 import { toast } from "sonner";
 import { savingsCircleAbi, ZERO, type Summary } from "@/lib/contracts";
 import { plannedRounds } from "@/lib/circle-logic";
-import { useMusdSpend, useTx } from "@/lib/hooks";
+import { useMusdPermit, useMusdSpend, useTx, type PermitSig } from "@/lib/hooks";
 import { inviteSignerOf, rememberInviteKey, signInvite } from "@/lib/invite";
 import { humanizeError } from "@/lib/errors";
 import { chain } from "@/lib/wagmi";
@@ -16,6 +16,7 @@ export function useJoin(s: Summary | undefined, inviteKey: Hex | null) {
   const client = usePublicClient({ chainId: chain.id });
   const { send, busy } = useTx();
   const spend = useMusdSpend();
+  const permit = useMusdPermit();
 
   const join = async (): Promise<boolean> => {
     if (!s || !user || !client) return false;
@@ -25,9 +26,12 @@ export function useJoin(s: Summary | undefined, inviteKey: Hex | null) {
         toast.error("Your MUSD balance is too low for the deposit.");
         return false;
       }
+      // deposit + every scheduled round, so later payments need no further approval
+      let permitSig: PermitSig | null = null;
       if (deposit > 0n && spend.needsApproval(deposit)) {
         const commitment = deposit + s.params.contributionAmount * BigInt(plannedRounds(s));
-        if (!(await spend.approve(commitment))) return false;
+        permitSig = await permit(commitment);
+        if (!permitSig && !(await spend.approve(commitment))) return false;
       }
       let sig: Hex = "0x";
       const isPrivate = s.params.inviteSigner !== ZERO;
@@ -51,7 +55,14 @@ export function useJoin(s: Summary | undefined, inviteKey: Hex | null) {
       const r = await send(
         "join",
         "Join circle",
-        { address: s.circle, abi: savingsCircleAbi, functionName: "join", args: [sig] },
+        permitSig
+          ? {
+              address: s.circle,
+              abi: savingsCircleAbi,
+              functionName: "joinWithPermit",
+              args: [sig, permitSig.value, permitSig.deadline, permitSig.v, permitSig.r, permitSig.s],
+            }
+          : { address: s.circle, abi: savingsCircleAbi, functionName: "join", args: [sig] },
         { success: `Welcome to ${s.meta.name}` },
       );
       if (r && inviteKey) rememberInviteKey(s.circle, inviteKey);

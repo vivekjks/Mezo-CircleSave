@@ -153,9 +153,12 @@ export function CreateWizard() {
     if (new TextEncoder().encode(f.description).length > 600) e.description = "Keep the description under 600 characters.";
     if (new TextEncoder().encode(f.rules).length > 2000) e.rules = "Keep the rules under 2,000 characters.";
     if (!contribution || contribution <= 0n) e.contribution = "Enter how much each member pays per round.";
+    else if (contribution < 10n ** 16n) e.contribution = "The smallest contribution is 0.01 MUSD.";
     if (f.maxMembers < 2 || f.maxMembers > 50) e.maxMembers = "Circles hold between 2 and 50 members.";
     if (!rotating && (f.totalRounds < 1 || f.totalRounds > 120)) e.totalRounds = "Choose between 1 and 120 rounds.";
     if (rotating && collateral === null) e.collateral = "Enter a deposit amount, or 0 for none.";
+    else if (rotating && !f.isPrivate && contribution && (collateral ?? 0n) < contribution)
+      e.collateral = "Open circles need a deposit of at least one contribution, so a stranger can't take an early pot and leave.";
     if (f.model === Model.Goal && f.goalCustom && (!customGoal || customGoal <= 0n)) e.goalAmount = "Enter the target amount.";
     if (f.model === Model.Goal && f.beneficiaryMode === "address" && !isAddress(f.beneficiary)) e.beneficiary = "Enter a valid wallet address.";
     return e;
@@ -183,7 +186,7 @@ export function CreateWizard() {
       // 1. private circles: derive an invite key from a wallet signature
       let inviteKey: Hex | null = null;
       let inviteSigner: Address = ZERO;
-      if (f.isPrivate) {
+      if (f.isPrivate || f.model === Model.Emergency) {
         setCreating("sign");
         const created = await client.readContract({ address: ADDR.factory, abi: circleFactoryAbi, functionName: "createdBy", args: [address] });
         const sig = await signMessageAsync({ message: inviteKeyMessage(address, created.length) });
@@ -371,7 +374,6 @@ export function CreateWizard() {
                           onChange={(v) => set("payoutOrder", v)}
                           options={[
                             { value: PayoutOrder.JoinOrder, label: "Join order", sub: "First to join, first paid" },
-                            { value: PayoutOrder.Random, label: "Random draw", sub: "Shuffled at start" },
                             { value: PayoutOrder.Custom, label: "You decide", sub: "Set before starting" },
                           ]}
                         />
@@ -447,10 +449,14 @@ export function CreateWizard() {
                   )}
                   <div className="space-y-5 border-t border-rule pt-6">
                     <Toggle
-                      checked={f.isPrivate}
-                      onChange={(v) => set("isPrivate", v)}
+                      checked={f.isPrivate || f.model === Model.Emergency}
+                      onChange={(v) => f.model !== Model.Emergency && set("isPrivate", v)}
                       label="Invite only"
-                      description="Only people with your invite link can join. Your wallet signs once to create the link; you can recreate it later from any device."
+                      description={
+                        f.model === Model.Emergency
+                          ? "Emergency pools are always invite only, because the group votes on who gets paid."
+                          : "Only people with your invite link can join. Your wallet signs once to create the link; you can recreate it later from any device."
+                      }
                     />
                     <Toggle
                       checked={f.creatorJoins}
@@ -472,11 +478,11 @@ export function CreateWizard() {
                     <Row k="Members" v={`Up to ${f.maxMembers}`} />
                     <Row k="Rounds" v={rotating ? `${f.maxMembers}, one per member` : `${f.totalRounds}`} />
                     {rotating && <Row k="Deposit" v={collateral ? `${toMusd(collateral)} MUSD, returned at the end` : "None"} />}
-                    {rotating && <Row k="Payout order" v={["Join order", "Random draw at start", "Set by you before starting"][f.payoutOrder]} />}
+                    {rotating && <Row k="Payout order" v={f.payoutOrder === PayoutOrder.Custom ? "Set by you before starting" : "Join order"} />}
                     {f.model === Model.Goal && <Row k="Goal" v={`${toMusd(goal ?? 0n)} MUSD, ${f.beneficiaryMode === "address" ? "paid to one wallet" : "returned to members"}`} />}
                     {f.model === Model.FixedTerm && <Row k="Early exit penalty" v={bpsToPercent(f.penaltyBps)} />}
                     {!rotating && <Row k="Approval threshold" v={`${bpsToPercent(f.approvalBps)} of members, ${durationLabel(f.votingPeriod)} to vote`} />}
-                    <Row k="Joining" v={`${f.isPrivate ? "Invite link only" : "Open to anyone"}, closes ${durationLabel(f.joinWindow)} after creation`} />
+                    <Row k="Joining" v={`${f.isPrivate || f.model === Model.Emergency ? "Invite link only" : "Open to anyone"}, closes ${durationLabel(f.joinWindow)} after creation`} />
                     <Row k="Fee" v={`${feeBps.data !== undefined ? bpsToPercent(feeBps.data) : "0.25%"} of payouts. Refunds are free.`} />
                   </dl>
                   <div className="mt-7">

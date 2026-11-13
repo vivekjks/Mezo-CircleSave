@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import type { Address } from "viem";
 import { ExternalLink } from "lucide-react";
+import { useReadContract } from "wagmi";
 import {
   ActivityKind,
   ADDR,
@@ -122,7 +123,7 @@ export function ScheduleTab({ s, members, paidBits, t }: { s: Summary; members: 
     if (!started || !order.length)
       return (
         <Empty title="The payout order is set when the circle starts">
-          {s.params.payoutOrder === 0 ? "Members are paid in the order they joined." : s.params.payoutOrder === 1 ? "The contract shuffles members at the start." : "The creator sets the order before starting."}
+          {s.params.payoutOrder === 2 ? "The creator sets the order before starting. Members can leave with a full refund if they disagree." : "Members are paid in the order they joined."}
         </Empty>
       );
     return (
@@ -220,6 +221,13 @@ export function ScheduleTab({ s, members, paidBits, t }: { s: Summary; members: 
 export function VotesTab({ s, pos, user, t }: { s: Summary; pos?: Position; user?: Address; t: number }) {
   const { data, isLoading } = useProposals(s.circle, user);
   const { send, busy } = useTx();
+  const upToDate = useReadContract({
+    address: s.circle,
+    abi: savingsCircleAbi,
+    functionName: "isUpToDate",
+    args: user ? [user] : undefined,
+    query: { enabled: !!user && s.params.model !== Model.Rotating, refetchInterval: 15_000 },
+  });
   if (s.params.model === Model.Rotating) return null;
   if (isLoading) return <Skeleton className="h-32 w-full" />;
   if (!data?.length)
@@ -230,9 +238,15 @@ export function VotesTab({ s, pos, user, t }: { s: Summary; pos?: Position; user
           : "Members can propose closing the circle early. Proposals and votes appear here."}
       </Empty>
     );
-  const canVote = !!pos?.isMember && !pos.member.exited && s.status === Status.Active;
+  const canVote = !!pos?.isMember && !pos.member.exited && s.status === Status.Active && upToDate.data !== false;
+  const behind = !!pos?.isMember && !pos.member.exited && s.status === Status.Active && upToDate.data === false;
   return (
     <ul className="space-y-4">
+      {behind && (
+        <li className="rounded-[var(--radius-panel)] border border-ink px-5 py-4 text-[14px] text-ink">
+          You&apos;re behind on your rounds, so you can&apos;t vote right now. Pay what&apos;s overdue to get your say back.
+        </li>
+      )}
       {data.map((p: ProposalView) => {
         const st = proposalStateLabel(p.state);
         const d = p.data;
@@ -287,7 +301,7 @@ export function VotesTab({ s, pos, user, t }: { s: Summary; pos?: Position; user
                   {isWithdrawal ? `Send ${toMusd(d.amount)} MUSD` : "Close the circle"}
                 </Button>
               )}
-              {own && p.state === ProposalState.Pending && (
+              {own && (p.state === ProposalState.Pending || p.state === ProposalState.Approved) && s.status === Status.Active && (
                 <Button size="sm" variant="ghost" loading={busy === `c-${p.id}`} onClick={() => send(`c-${p.id}`, "Withdraw proposal", { address: ADDR.governor, abi: circleGovernorAbi, functionName: "cancel", args: [s.circle, p.id] })}>
                   Withdraw
                 </Button>
@@ -422,7 +436,7 @@ export function RulesTab({ s }: { s: Summary }) {
   ];
   if (rotating) {
     rows.push(["Deposit", p.collateralAmount > 0n ? <><Musd value={p.collateralAmount} />, returned at the end</> : "None"]);
-    rows.push(["Payout order", ["Join order", "Random draw at start", "Set by the creator"][p.payoutOrder]]);
+    rows.push(["Payout order", p.payoutOrder === 2 ? "Set by the creator before starting" : "Join order"]);
   } else {
     rows.push(["Approval threshold", `${bpsToPercent(p.approvalBps)} of members, ${durationLabel(p.votingPeriod)} to vote`]);
   }

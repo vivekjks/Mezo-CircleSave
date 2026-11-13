@@ -104,7 +104,7 @@ export function JoinView({ address }: { address: Address }) {
               {rotating && (
                 <li>
                   Take the whole pot of about <strong className="tabular">{toMusd(s.params.contributionAmount * BigInt(s.params.maxMembers))} MUSD</strong> once, in your turn
-                  ({["by join order", "drawn at random when the circle starts", "set by the creator"][s.params.payoutOrder]}).
+                  ({s.params.payoutOrder === 2 ? "in the order the creator sets before starting" : "in the order members joined"}).
                 </li>
               )}
               {deposit > 0n && (
