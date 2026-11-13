@@ -1,6 +1,6 @@
 // Regenerates typed ABIs + deployment addresses from the Foundry build.
 // Usage: node scripts/sync-abis.mjs  (run `forge build` in ../contracts first)
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const root = join(import.meta.dirname, "..", "..", "contracts");
@@ -28,5 +28,19 @@ export const deployment = {
   implementation: "${dep.implementation}",
 } as const;
 `;
-writeFileSync(join(import.meta.dirname, "..", "src", "lib", "contracts", "deployment.ts"), addr);
+// demo circles created by scripts/e2e-testnet.ts (optional)
+const demoPath = join(root, "deployments", "demo-31611.json");
+const demo = existsSync(demoPath) ? JSON.parse(readFileSync(demoPath, "utf8")) : {};
+const pick = (k) => (demo[k] ? `"${demo[k]}"` : "null");
+const demoTs = `
+/** Circles from the live end-to-end run, shown on the landing page and in the README. */
+export const demoCircles: Record<"rotating" | "emergency" | "goal" | "openRotating" | "openFixed", \`0x\${string}\` | null> = {
+  rotating: ${pick("rotating")},
+  emergency: ${pick("emergency")},
+  goal: ${pick("goal")},
+  openRotating: ${pick("openRotating")},
+  openFixed: ${pick("openFixed")},
+};
+`;
+writeFileSync(join(import.meta.dirname, "..", "src", "lib", "contracts", "deployment.ts"), addr + demoTs);
 console.log("ABIs and deployment synced.");

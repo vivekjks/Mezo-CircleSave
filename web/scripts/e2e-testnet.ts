@@ -32,12 +32,14 @@ const env = (file: string) =>
 if (!existsSync(join(root, ".env.e2e"))) {
   writeFileSync(join(root, ".env.e2e"), `# CircleSave e2e test wallets (testnet only)\nJOHN_KEY=${generatePrivateKey()}\nSARAH_KEY=${generatePrivateKey()}\n`);
 }
-const ops = privateKeyToAccount(env(".env.ops").OPS_PRIVATE_KEY as Hex);
+// "Alex" is the deployer wallet when present, otherwise the operator wallet
+const alexKey = existsSync(join(root, ".env.deployer")) ? env(".env.deployer").DEPLOYER_PRIVATE_KEY : env(".env.ops").OPS_PRIVATE_KEY;
+const ops = privateKeyToAccount(alexKey as Hex);
 const e2e = env(".env.e2e");
 const john = privateKeyToAccount(e2e.JOHN_KEY as Hex);
 const sarah = privateKeyToAccount(e2e.SARAH_KEY as Hex);
 const NAMES = new Map([
-  [ops.address, "Alex (ops)"],
+  [ops.address, "Alex"],
   [john.address, "John"],
   [sarah.address, "Sarah"],
 ]);
