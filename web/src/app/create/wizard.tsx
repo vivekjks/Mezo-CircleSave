@@ -106,6 +106,14 @@ export function CreateWizard() {
   const spend = useMusdSpend();
   const feeBps = useReadContract({ address: ADDR.factory, abi: circleFactoryAbi, functionName: "feeBps" });
   const parentCircle = useCircle(parent);
+  // only circles from this factory can be linked as the previous round
+  const parentKnown = useReadContract({
+    address: ADDR.factory,
+    abi: circleFactoryAbi,
+    functionName: "isCircle",
+    args: parent ? [parent] : undefined,
+    query: { enabled: !!parent },
+  });
 
   const [step, setStep] = useState(0);
   const [f, setF] = useState<Form>(initial);
@@ -129,7 +137,7 @@ export function CreateWizard() {
       maxMembers: s.params.maxMembers,
       totalRounds: s.params.model === Model.Rotating ? p.totalRounds : s.params.totalRounds,
       collateral: toMusd(s.params.collateralAmount, 6).replace(/,/g, ""),
-      payoutOrder: s.params.payoutOrder,
+      payoutOrder: s.params.payoutOrder === PayoutOrder.Custom ? PayoutOrder.Custom : PayoutOrder.JoinOrder,
       penaltyBps: s.params.earlyExitPenaltyBps || p.penaltyBps,
       approvalBps: s.params.approvalBps,
       votingPeriod: s.params.votingPeriod || p.votingPeriod,
@@ -221,7 +229,7 @@ export function CreateWizard() {
         earlyExitPenaltyBps: f.model === Model.FixedTerm ? f.penaltyBps : 0,
         joinDeadline: BigInt(Math.floor(Date.now() / 1000) + f.joinWindow),
         inviteSigner,
-        parent: parent ?? ZERO,
+        parent: parent && parentKnown.data ? parent : ZERO,
         creatorJoins: f.creatorJoins,
       };
       const meta = { name: f.name.trim(), description: f.description.trim(), rules: f.rules.trim() };

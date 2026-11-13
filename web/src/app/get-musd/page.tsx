@@ -8,6 +8,7 @@ import { relativeTime, toMusd } from "@/lib/format";
 import { chain, explorerAddress } from "@/lib/wagmi";
 import { ConnectButton } from "@/components/wallet";
 import { Button, Panel } from "@/components/ui";
+import { SwapToMusd } from "@/components/swap-to-musd";
 
 export default function GetMusdPage() {
   const mounted = useMounted();
@@ -38,11 +39,36 @@ export default function GetMusdPage() {
     <div className="mx-auto max-w-6xl px-5 py-12">
       <h1 className="font-display text-[40px] leading-tight text-ink">Get MUSD for testing</h1>
       <p className="mt-2 max-w-2xl text-ink-soft">
-        Circles are paid in MUSD, Mezo&apos;s Bitcoin-backed dollar. On testnet you can take a small amount from our
-        faucet, or borrow your own against testnet BTC on Mezo.
+        Circles are paid in MUSD, Mezo&apos;s Bitcoin-backed dollar. The quickest way in: take test BTC or MEZO from
+        the Mezo faucet and swap it for MUSD right here on Mezo Pools. You can also use our faucet or borrow MUSD on Mezo.
       </p>
 
       <div className="mt-10 grid gap-6 lg:grid-cols-2">
+        <Panel className="grid gap-8 p-6 sm:p-8 lg:col-span-2 lg:grid-cols-[1fr_420px]">
+          <div>
+            <h2 className="font-display text-2xl text-ink">Swap BTC or MEZO for MUSD</h2>
+            <p className="mt-2 max-w-md text-[15px] text-ink-soft">
+              CircleSave routes the swap through Mezo Pools, Mezo&apos;s own exchange, using the MUSD/BTC and MUSD/MEZO
+              pools. The MUSD lands in your wallet, ready for your next round.
+            </p>
+            <ol className="mt-6 space-y-3 text-[15px] text-ink">
+              <li>
+                <span className="font-semibold">1.</span> Get test BTC and MEZO from the{" "}
+                <a className="link-quiet font-semibold" href="https://faucet.test.mezo.org" target="_blank" rel="noreferrer">
+                  Mezo faucet
+                </a>
+                .
+              </li>
+              <li>
+                <span className="font-semibold">2.</span> Choose how much to swap. You see the MUSD you&apos;ll get before you sign.
+              </li>
+              <li>
+                <span className="font-semibold">3.</span> Approve once, then swap. A little BTC is always kept back for gas.
+              </li>
+            </ol>
+          </div>
+          <SwapToMusd />
+        </Panel>
         <Panel className="p-6 sm:p-8">
           <h2 className="font-display text-2xl text-ink">CircleSave faucet</h2>
           <p className="mt-2 text-[15px] text-ink-soft">
